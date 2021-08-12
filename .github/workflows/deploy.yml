@@ -1,0 +1,56 @@
+name: CI/CD
+
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2.3.1
+     
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Install Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+
+      - name: Install Project Dependencies
+        run: npm install
+
+      - name: Install Gatsby CLI
+        run: npm install -g gatsby-cli@2.12.34
+     
+      - name: Install AWS CDK
+        run: 'sudo npm install -g aws-cdk'
+
+      - name: Configure .env for Gatsby
+        run: echo "CONTENTFUL_SPACE_ID='${{secrets.GB_SPACEID}}'" >> .env ; echo "CONTENTFUL_ACCESS_TOKEN='${{secrets.GB_ACCESSTOKEN}}'" >> .env
+
+      - name: Gatsby Build
+        run: gatsby build
+     
+      - name: CDK Bootstrap
+        run: yarn add @aws-cdk/aws-s3 @aws-cdk/aws-s3-deployment @aws-cdk/aws-cloudfront ; cdk bootstrap
+        working-directory: cdk
+
+      - name: CDK Synth
+        run: cdk synth
+        working-directory: cdk
+
+      - name: CDK Deploy
+        run: cdk deploy --require-approval never
+        working-directory: cdk
+
+      - name: Verify build
+        run:  ls -la public
